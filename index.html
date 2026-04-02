@@ -1,104 +1,111 @@
-// 1. 引入 Firebase SDK (使用相容版本 CDN，適合單檔案開發)
-import { initializeApp } from "https://www.gstatic.com/firebasejs/10.8.0/firebase-app.js";
-import { getDatabase, ref, push, onChildAdded } from "https://www.gstatic.com/firebasejs/10.8.0/firebase-database.js";
+<script type="module">
+    // 1. 引入 Firebase SDK (使用您最新的 12.11.0 版本)
+    import { initializeApp } from "https://www.gstatic.com/firebasejs/12.11.0/firebase-app.js";
+    import { getDatabase, ref, push, onChildAdded } from "https://www.gstatic.com/firebasejs/12.11.0/firebase-database.js";
 
-// 2. Firebase 設定 (請替換為你的專案參數)
-const firebaseConfig = {
-    apiKey: "YOUR_API_KEY",
-    authDomain: "YOUR_PROJECT_ID.firebaseapp.com",
-    databaseURL: "https://YOUR_PROJECT_ID-default-rtdb.firebaseio.com",
-    projectId: "YOUR_PROJECT_ID",
-    storageBucket: "YOUR_PROJECT_ID.appspot.com",
-    messagingSenderId: "YOUR_SENDER_ID",
-    appId: "YOUR_APP_ID"
-};
-
-// 3. 初始化 Firebase 與資料庫
-const app = initializeApp(firebaseConfig);
-const db = getDatabase(app);
-const wallRef = ref(db, 'workshop_ideas');
-
-let currentStep = 1;
-const stageLabels = ["看見問題", "提煉價值", "設計活動", "評估可行性"];
-
-// --- 邏輯功能區 ---
-
-// 控制步驟切換 (保持原有 RWD 邏輯)
-window.changeStep = function(n) {
-    const newStep = currentStep + n;
-    if (newStep < 1 || newStep > 4) return;
-    document.getElementById(`step${currentStep}`).classList.remove('active');
-    document.querySelector(`.step[data-step="${currentStep}"]`).classList.remove('active');
-    currentStep = newStep;
-    document.getElementById(`step${currentStep}`).classList.add('active');
-    document.querySelector(`.step[data-step="${currentStep}"]`).classList.add('active');
-    document.getElementById('prevBtn').style.visibility = (currentStep === 1) ? 'hidden' : 'visible';
-    if (currentStep === 4) {
-        document.getElementById('nextBtn').style.display = 'none';
-        document.getElementById('submitBtn').style.display = 'block';
-    } else {
-        document.getElementById('nextBtn').style.display = 'block';
-        document.getElementById('submitBtn').style.display = 'none';
-    }
-}
-
-// 送出資料到 Firebase
-window.submitData = function() {
-    const group = document.getElementById('userGroup').value || "未分組";
-    const name = document.getElementById('userName').value || "匿名島民";
-    const role = document.getElementById('userRole').value;
-    const content = document.getElementById(`ans${currentStep}`).value;
-
-    if (!content.trim()) {
-        alert("內容不能為空喔！請輸入您的智慧見解。");
-        return;
-    }
-
-    // 封裝數據對象
-    const postData = {
-        group,
-        name,
-        role,
-        stage: stageLabels[currentStep-1],
-        content,
-        timestamp: Date.now(),
-        likes: 0
+    // 2. 您的專屬 Firebase 設定 (已更新真實參數)
+    const firebaseConfig = {
+        apiKey: "AIzaSyDojQA5hs0LCdCilfqkTX-vDoo-c91Dc8A",
+        authDomain: "my-realtime-demo.firebaseapp.com",
+        databaseURL: "https://my-realtime-demo-default-rtdb.asia-southeast1.firebasedatabase.app",
+        projectId: "my-realtime-demo",
+        storageBucket: "my-realtime-demo.firebasestorage.app",
+        messagingSenderId: "777385925855",
+        appId: "1:777385925855:web:5d0e42f7e7581538491d6a",
+        measurementId: "G-WK917TD06J"
     };
 
-    // 推送到 Firebase
-    push(wallRef, postData)
-        .then(() => {
-            document.getElementById(`ans${currentStep}`).value = "";
-            alert("數據已同步至雲端！");
-        })
-        .catch((error) => {
-            console.error("同步失敗：", error);
-            alert("哎呀，數位引擎熄火了，請檢查網路連線。");
-        });
-}
+    // 3. 初始化 Firebase 與資料庫
+    const app = initializeApp(firebaseConfig);
+    const db = getDatabase(app);
+    const wallRef = ref(db, 'workshop_ideas');
 
-// 監聽 Firebase 數據流：當有新資料加入時，即時渲染牆面
-onChildAdded(wallRef, (data) => {
-    const idea = data.val();
-    addCardToWall(idea.group, idea.name, idea.role, idea.stage, idea.content);
-});
+    let currentStep = 1;
+    const stageLabels = ["看見問題", "提煉價值", "設計活動", "評估可行性"];
 
-// 渲染卡片到 UI
-function addCardToWall(group, name, role, stage, content) {
-    const wallGrid = document.getElementById('wallGrid');
-    const card = document.createElement('div');
-    card.className = 'idea-card';
-    card.innerHTML = `
-        <div class="card-meta">
-            <span><strong>${group}</strong> · ${name} (${role})</span>
-            <span class="card-tag">${stage}</span>
-        </div>
-        <div class="card-content">${content.replace(/\n/g, '<br>')}</div>
-        <div class="card-footer">
-            <button class="like-btn" onclick="this.querySelector('.like-count').innerText++">
-                ❤️ <span class="like-count">0</span>
-            </button>
-        </div>
-    `;
-    wallGrid.insertBefore(card, wallGrid.firstChild);
-}
+    // --- 核心邏輯區 ---
+
+    // 控制步驟切換 (將函數綁定到 window 確保 HTML 呼叫得到)
+    window.changeStep = function(n) {
+        const newStep = currentStep + n;
+        if (newStep < 1 || newStep > 4) return;
+        
+        document.getElementById(`step${currentStep}`).classList.remove('active');
+        document.querySelector(`.step[data-step="${currentStep}"]`).classList.remove('active');
+        
+        currentStep = newStep;
+        
+        document.getElementById(`step${currentStep}`).classList.add('active');
+        document.querySelector(`.step[data-step="${currentStep}"]`).classList.add('active');
+        
+        document.getElementById('prevBtn').style.visibility = (currentStep === 1) ? 'hidden' : 'visible';
+        if (currentStep === 4) {
+            document.getElementById('nextBtn').style.display = 'none';
+            document.getElementById('submitBtn').style.display = 'block';
+        } else {
+            document.getElementById('nextBtn').style.display = 'block';
+            document.getElementById('submitBtn').style.display = 'none';
+        }
+    }
+
+    // 送出資料到 Firebase 雲端
+    window.submitData = function() {
+        const group = document.getElementById('userGroup').value || "未分組";
+        const name = document.getElementById('userName').value || "匿名島民";
+        const role = document.getElementById('userRole').value;
+        const content = document.getElementById(`ans${currentStep}`).value;
+
+        if (!content.trim()) {
+            alert("外木山的靈感不能留白喔！請輸入您的見解。");
+            return;
+        }
+
+        const postData = {
+            group,
+            name,
+            role,
+            stage: stageLabels[currentStep-1],
+            content,
+            timestamp: Date.now(),
+            likes: 0
+        };
+
+        // 推送到雲端
+        push(wallRef, postData)
+            .then(() => {
+                document.getElementById(`ans${currentStep}`).value = "";
+                alert("數據已同步至雲端共創牆！");
+            })
+            .catch((error) => {
+                console.error("同步失敗：", error);
+                alert("哎呀，數位引擎熄火了，請確認 Firebase Rules 的 Rules 分頁已設為 true。");
+            });
+    }
+
+    // 監聽 Firebase：當有新資料加入時，即時渲染牆面
+    onChildAdded(wallRef, (data) => {
+        const idea = data.val();
+        addCardToWall(idea.group, idea.name, idea.role, idea.stage, idea.content);
+    });
+
+    // 渲染卡片到 UI 介面
+    function addCardToWall(group, name, role, stage, content) {
+        const wallGrid = document.getElementById('wallGrid');
+        const card = document.createElement('div');
+        card.className = 'idea-card';
+        card.innerHTML = `
+            <div class="card-meta">
+                <span><strong>${group}</strong> · ${name} (${role})</span>
+                <span class="card-tag">${stage}</span>
+            </div>
+            <div class="card-content">${content.replace(/\n/g, '<br>')}</div>
+            <div class="card-footer">
+                <button class="like-btn" onclick="this.querySelector('.like-count').innerText++">
+                    ❤️ <span class="like-count">0</span>
+                </button>
+            </div>
+        `;
+        // 將新靈感放在最前面
+        wallGrid.insertBefore(card, wallGrid.firstChild);
+    }
+</script>
