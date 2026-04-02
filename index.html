@@ -1,396 +1,104 @@
-<!DOCTYPE html>
-<html lang="zh-Hant">
-<head>
-    <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>外木山工作坊即時互動頁面</title>
-    <style>
-        :root {
-            --ocean-blue: #005B96;
-            --nature-green: #4F7942;
-            --beach-white: #F8F9FA;
-            --sand-gold: #D2B48C;
-            --text-dark: #333;
-            --shadow: 0 4px 15px rgba(0,0,0,0.1);
-        }
+// 1. 引入 Firebase SDK (使用相容版本 CDN，適合單檔案開發)
+import { initializeApp } from "https://www.gstatic.com/firebasejs/10.8.0/firebase-app.js";
+import { getDatabase, ref, push, onChildAdded } from "https://www.gstatic.com/firebasejs/10.8.0/firebase-database.js";
 
-        * {
-            box-sizing: border-box;
-            margin: 0;
-            padding: 0;
-            font-family: "PingFang TC", "Microsoft JhengHei", sans-serif;
-        }
+// 2. Firebase 設定 (請替換為你的專案參數)
+const firebaseConfig = {
+    apiKey: "YOUR_API_KEY",
+    authDomain: "YOUR_PROJECT_ID.firebaseapp.com",
+    databaseURL: "https://YOUR_PROJECT_ID-default-rtdb.firebaseio.com",
+    projectId: "YOUR_PROJECT_ID",
+    storageBucket: "YOUR_PROJECT_ID.appspot.com",
+    messagingSenderId: "YOUR_SENDER_ID",
+    appId: "YOUR_APP_ID"
+};
 
-        body {
-            background-color: var(--beach-white);
-            color: var(--text-dark);
-            line-height: 1.6;
-            padding: 20px;
-        }
+// 3. 初始化 Firebase 與資料庫
+const app = initializeApp(firebaseConfig);
+const db = getDatabase(app);
+const wallRef = ref(db, 'workshop_ideas');
 
-        .container {
-            max-width: 1000px;
-            margin: 0 auto;
-        }
+let currentStep = 1;
+const stageLabels = ["看見問題", "提煉價值", "設計活動", "評估可行性"];
 
-        header {
-            text-align: center;
-            margin-bottom: 30px;
-            color: var(--ocean-blue);
-        }
+// --- 邏輯功能區 ---
 
-        /* 個人填答區 */
-        .input-card {
-            background: #fff;
-            padding: 30px;
-            border-radius: 15px;
-            box-shadow: var(--shadow);
-            margin-bottom: 40px;
-            border-top: 5px solid var(--ocean-blue);
-        }
+// 控制步驟切換 (保持原有 RWD 邏輯)
+window.changeStep = function(n) {
+    const newStep = currentStep + n;
+    if (newStep < 1 || newStep > 4) return;
+    document.getElementById(`step${currentStep}`).classList.remove('active');
+    document.querySelector(`.step[data-step="${currentStep}"]`).classList.remove('active');
+    currentStep = newStep;
+    document.getElementById(`step${currentStep}`).classList.add('active');
+    document.querySelector(`.step[data-step="${currentStep}"]`).classList.add('active');
+    document.getElementById('prevBtn').style.visibility = (currentStep === 1) ? 'hidden' : 'visible';
+    if (currentStep === 4) {
+        document.getElementById('nextBtn').style.display = 'none';
+        document.getElementById('submitBtn').style.display = 'block';
+    } else {
+        document.getElementById('nextBtn').style.display = 'block';
+        document.getElementById('submitBtn').style.display = 'none';
+    }
+}
 
-        .user-info {
-            display: grid;
-            grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
-            gap: 15px;
-            margin-bottom: 30px;
-        }
+// 送出資料到 Firebase
+window.submitData = function() {
+    const group = document.getElementById('userGroup').value || "未分組";
+    const name = document.getElementById('userName').value || "匿名島民";
+    const role = document.getElementById('userRole').value;
+    const content = document.getElementById(`ans${currentStep}`).value;
 
-        .form-group label {
-            display: block;
-            margin-bottom: 5px;
-            font-weight: bold;
-            color: var(--ocean-blue);
-        }
-
-        input, select, textarea {
-            width: 100%;
-            padding: 10px;
-            border: 1px solid #ddd;
-            border-radius: 8px;
-            font-size: 1rem;
-        }
-
-        /* 進度條 */
-        .progress-stepper {
-            display: flex;
-            justify-content: space-between;
-            margin-bottom: 30px;
-            position: relative;
-        }
-
-        .progress-stepper::before {
-            content: '';
-            position: absolute;
-            top: 50%;
-            left: 0;
-            right: 0;
-            height: 2px;
-            background: #eee;
-            z-index: 1;
-            transform: translateY(-50%);
-        }
-
-        .step {
-            width: 40px;
-            height: 40px;
-            background: #fff;
-            border: 2px solid #eee;
-            border-radius: 50%;
-            display: flex;
-            align-items: center;
-            justify-content: center;
-            z-index: 2;
-            font-weight: bold;
-            transition: 0.3s;
-            cursor: pointer;
-        }
-
-        .step.active {
-            border-color: var(--ocean-blue);
-            background: var(--ocean-blue);
-            color: white;
-        }
-
-        /* 題目卡片切換 */
-        .question-container {
-            min-height: 200px;
-        }
-
-        .question-card {
-            display: none;
-            animation: fadeIn 0.5s ease;
-        }
-
-        .question-card.active {
-            display: block;
-        }
-
-        .question-card h3 {
-            margin-bottom: 10px;
-            color: var(--nature-green);
-        }
-
-        .helper-text {
-            font-size: 0.9rem;
-            color: #666;
-            margin-bottom: 15px;
-            font-style: italic;
-        }
-
-        .btn-group {
-            display: flex;
-            justify-content: space-between;
-            margin-top: 20px;
-        }
-
-        button {
-            padding: 10px 25px;
-            border: none;
-            border-radius: 8px;
-            cursor: pointer;
-            font-weight: bold;
-            transition: 0.3s;
-        }
-
-        .btn-prev { background: #eee; color: #666; }
-        .btn-next { background: var(--ocean-blue); color: white; }
-        .btn-submit { background: var(--nature-green); color: white; }
-
-        button:hover { opacity: 0.9; transform: translateY(-2px); }
-
-        /* 共創牆 */
-        .wall-section h2 {
-            text-align: center;
-            margin-bottom: 20px;
-            color: var(--ocean-blue);
-            border-bottom: 2px solid var(--ocean-blue);
-            display: inline-block;
-            width: 100%;
-            padding-bottom: 10px;
-        }
-
-        .wall-grid {
-            display: grid;
-            grid-template-columns: repeat(auto-fill, minmax(280px, 1fr));
-            gap: 20px;
-        }
-
-        .idea-card {
-            background: white;
-            padding: 20px;
-            border-radius: 12px;
-            box-shadow: var(--shadow);
-            border-left: 5px solid var(--nature-green);
-            animation: slideUp 0.4s ease;
-        }
-
-        .card-meta {
-            display: flex;
-            justify-content: space-between;
-            font-size: 0.85rem;
-            color: #888;
-            margin-bottom: 10px;
-        }
-
-        .card-tag {
-            background: var(--ocean-blue);
-            color: white;
-            padding: 2px 8px;
-            border-radius: 4px;
-            font-size: 0.75rem;
-        }
-
-        .card-content {
-            font-size: 1rem;
-            margin-bottom: 15px;
-            color: #444;
-        }
-
-        .card-footer {
-            display: flex;
-            justify-content: flex-end;
-        }
-
-        .like-btn {
-            background: none;
-            border: none;
-            color: #ff6b6b;
-            cursor: pointer;
-            display: flex;
-            align-items: center;
-            gap: 5px;
-        }
-
-        @keyframes fadeIn {
-            from { opacity: 0; }
-            to { opacity: 1; }
-        }
-
-        @keyframes slideUp {
-            from { opacity: 0; transform: translateY(20px); }
-            to { opacity: 1; transform: translateY(0); }
-        }
-
-        @media (max-width: 600px) {
-            .user-info { grid-template-columns: 1fr; }
-            .step { width: 30px; height: 30px; font-size: 0.8rem; }
-        }
-    </style>
-</head>
-<body>
-
-<div class="container">
-    <header>
-        <h1>外木山工作坊：即時互動共創</h1>
-    </header>
-
-    <section class="input-card">
-        <div class="user-info">
-            <div class="form-group">
-                <label>組別</label>
-                <input type="text" id="userGroup" placeholder="例如：第一組">
-            </div>
-            <div class="form-group">
-                <label>暱稱</label>
-                <input type="text" id="userName" placeholder="如何稱呼您？">
-            </div>
-            <div class="form-group">
-                <label>角色</label>
-                <select id="userRole">
-                    <option value="學生">學生</option>
-                    <option value="教師">教師</option>
-                    <option value="觀察者">觀察者</option>
-                </select>
-            </div>
-        </div>
-
-        <div class="progress-stepper">
-            <div class="step active" data-step="1">1</div>
-            <div class="step" data-step="2">2</div>
-            <div class="step" data-step="3">3</div>
-            <div class="step" data-step="4">4</div>
-        </div>
-
-        <div class="question-container">
-            <div class="question-card active" id="step1">
-                <h3>看見問題</h3>
-                <p class="helper-text">💡 今天在外木山，你最想被大家正視的一個現象是什麼？（例如：海漂垃圾、觀光衝擊或文化斷層）</p>
-                <textarea id="ans1" rows="4" placeholder="請描述您的觀察..."></textarea>
-            </div>
-
-            <div class="question-card" id="step2">
-                <h3>提煉價值</h3>
-                <p class="helper-text">💡 如果把這個現象變成一堂課，你最希望學員學到什麼核心價值？</p>
-                <textarea id="ans2" rows="4" placeholder="請分享您想傳遞的價值..."></textarea>
-            </div>
-
-            <div class="question-card" id="step3">
-                <h3>設計活動</h3>
-                <p class="helper-text">💡 你會怎麼把它設計成一場有參與感的課？（實境遊戲、手作體驗、還是生態解說？）</p>
-                <textarea id="ans3" rows="4" placeholder="請勾勒活動的輪廓..."></textarea>
-            </div>
-
-            <div class="question-card" id="step4">
-                <h3>評估可行性</h3>
-                <p class="helper-text">💡 這堂課要真的在外木山辦，最需要先解決什麼關鍵問題？</p>
-                <textarea id="ans4" rows="4" placeholder="例如：人力、經費、場地許可..."></textarea>
-            </div>
-        </div>
-
-        <div class="btn-group">
-            <button class="btn-prev" onclick="changeStep(-1)" id="prevBtn" style="visibility: hidden;">上一步</button>
-            <button class="btn-next" onclick="changeStep(1)" id="nextBtn">下一步</button>
-            <button class="btn-submit" onclick="submitData()" id="submitBtn" style="display: none;">送出答案</button>
-        </div>
-    </section>
-
-    <section class="wall-section">
-        <h2>🌊 外木山靈感共創牆</h2>
-        <div class="wall-grid" id="wallGrid">
-            </div>
-    </section>
-</div>
-
-<script>
-    let currentStep = 1;
-    const stageLabels = ["看見問題", "提煉價值", "設計活動", "評估可行性"];
-
-    function changeStep(n) {
-        // 更新當前階段
-        const newStep = currentStep + n;
-        if (newStep < 1 || newStep > 4) return;
-
-        // 切換顯示
-        document.getElementById(`step${currentStep}`).classList.remove('active');
-        document.querySelector(`.step[data-step="${currentStep}"]`).classList.remove('active');
-        
-        currentStep = newStep;
-        
-        document.getElementById(`step${currentStep}`).classList.add('active');
-        document.querySelector(`.step[data-step="${currentStep}"]`).classList.add('active');
-
-        // 控制按鈕顯示
-        document.getElementById('prevBtn').style.visibility = (currentStep === 1) ? 'hidden' : 'visible';
-        
-        if (currentStep === 4) {
-            document.getElementById('nextBtn').style.display = 'none';
-            document.getElementById('submitBtn').style.display = 'block';
-        } else {
-            document.getElementById('nextBtn').style.display = 'block';
-            document.getElementById('submitBtn').style.display = 'none';
-        }
+    if (!content.trim()) {
+        alert("內容不能為空喔！請輸入您的智慧見解。");
+        return;
     }
 
-    function submitData() {
-        const group = document.getElementById('userGroup').value || "未分組";
-        const name = document.getElementById('userName').value || "匿名島民";
-        const role = document.getElementById('userRole').value;
-        const content = document.getElementById(`ans${currentStep}`).value;
+    // 封裝數據對象
+    const postData = {
+        group,
+        name,
+        role,
+        stage: stageLabels[currentStep-1],
+        content,
+        timestamp: Date.now(),
+        likes: 0
+    };
 
-        if (!content.trim()) {
-            alert("請輸入一點想法再送出喔！");
-            return;
-        }
+    // 推送到 Firebase
+    push(wallRef, postData)
+        .then(() => {
+            document.getElementById(`ans${currentStep}`).value = "";
+            alert("數據已同步至雲端！");
+        })
+        .catch((error) => {
+            console.error("同步失敗：", error);
+            alert("哎呀，數位引擎熄火了，請檢查網路連線。");
+        });
+}
 
-        addCardToWall(group, name, role, stageLabels[currentStep-1], content);
-        
-        // 清空當前欄位
-        document.getElementById(`ans${currentStep}`).value = "";
-        alert("發布成功！看看共創牆上的新靈感吧。");
-    }
+// 監聽 Firebase 數據流：當有新資料加入時，即時渲染牆面
+onChildAdded(wallRef, (data) => {
+    const idea = data.val();
+    addCardToWall(idea.group, idea.name, idea.role, idea.stage, idea.content);
+});
 
-    function addCardToWall(group, name, role, stage, content) {
-        const wallGrid = document.getElementById('wallGrid');
-        
-        const card = document.createElement('div');
-        card.className = 'idea-card';
-        
-        card.innerHTML = `
-            <div class="card-meta">
-                <span><strong>${group}</strong> · ${name} (${role})</span>
-                <span class="card-tag">${stage}</span>
-            </div>
-            <div class="card-content">${content.replace(/\n/g, '<br>')}</div>
-            <div class="card-footer">
-                <button class="like-btn" onclick="likeCard(this)">
-                    ❤️ <span class="like-count">0</span>
-                </button>
-            </div>
-        `;
-        
-        // 置頂插入
-        wallGrid.insertBefore(card, wallGrid.firstChild);
-    }
-
-    function likeCard(btn) {
-        const countSpan = btn.querySelector('.like-count');
-        let count = parseInt(countSpan.innerText);
-        countSpan.innerText = count + 1;
-        btn.style.transform = "scale(1.2)";
-        setTimeout(() => btn.style.transform = "scale(1)", 200);
-    }
-</script>
-
-</body>
-</html>
+// 渲染卡片到 UI
+function addCardToWall(group, name, role, stage, content) {
+    const wallGrid = document.getElementById('wallGrid');
+    const card = document.createElement('div');
+    card.className = 'idea-card';
+    card.innerHTML = `
+        <div class="card-meta">
+            <span><strong>${group}</strong> · ${name} (${role})</span>
+            <span class="card-tag">${stage}</span>
+        </div>
+        <div class="card-content">${content.replace(/\n/g, '<br>')}</div>
+        <div class="card-footer">
+            <button class="like-btn" onclick="this.querySelector('.like-count').innerText++">
+                ❤️ <span class="like-count">0</span>
+            </button>
+        </div>
+    `;
+    wallGrid.insertBefore(card, wallGrid.firstChild);
+}
